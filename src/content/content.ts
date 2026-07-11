@@ -8,7 +8,7 @@
  * Primary target: https://submit.shutterstock.com/portfolio/not_submitted/photo
  */
 import { NOT_SUBMITTED_URL } from "@/constants/config";
-import type { RuntimeMessage, ZoomLevel } from "@/types";
+import type { RuntimeMessage } from "@/types";
 import { scanPortfolioGrid, clickAssetCard } from "./scanner";
 import { waitForEditorReady } from "./editorWaiter";
 import { fillMetadataForEditor } from "./autofill";
@@ -34,13 +34,7 @@ function isOnShutterstockSite(): boolean {
   return window.location.hostname === "submit.shutterstock.com";
 }
 
-// ---------------------------------------------------------------------------
-// Zoom
-// ---------------------------------------------------------------------------
 
-function applyZoom(zoomLevel: ZoomLevel): void {
-  (document.documentElement.style as unknown as { zoom: string }).zoom = `${zoomLevel}%`;
-}
 
 // ---------------------------------------------------------------------------
 // Observer Bootstrap
@@ -212,9 +206,7 @@ async function handleMessage(message: RuntimeMessage): Promise<unknown> {
     }
 
     // ----- Legacy -----
-    case "APPLY_ZOOM":
-      applyZoom(message.zoomLevel);
-      return { ok: true };
+
 
     case "FILL_ROW": {
       const fillResult = await fillMetadataForEditor(message.metadata);

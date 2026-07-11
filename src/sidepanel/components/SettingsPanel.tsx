@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useSettings } from "../hooks/useSettings";
 import { ApiKeyManager } from "./ApiKeyManager";
-import type { ZoomLevel } from "@/types";
+
 
 type Tab = "api" | "processing" | "workspace" | "export" | "general";
 
@@ -13,7 +13,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "general", label: "General" }
 ];
 
-const ZOOM_LEVELS: ZoomLevel[] = [100, 90, 80, 70, 60];
+
 
 export function SettingsPanel() {
   const [tab, setTab] = useState<Tab>("api");
@@ -119,24 +119,7 @@ export function SettingsPanel() {
 
       {tab === "workspace" && (
         <>
-          <div className="field-group">
-            <label className="field-label">Page zoom on upload page</label>
-            <div className="segmented">
-              {ZOOM_LEVELS.map((z) => (
-                <button
-                  key={z}
-                  className={settings.workspace.zoomLevel === z ? "active" : ""}
-                  onClick={() => {
-                    updateSection("workspace", { zoomLevel: z });
-                    applyZoomToActiveTab(z);
-                  }}
-                >
-                  {z}%
-                </button>
-              ))}
-            </div>
-            <span className="field-hint">Default is 70% to fit more of the upload grid on screen.</span>
-          </div>
+
 
           <div className="toggle-row">
             <div>
@@ -236,11 +219,3 @@ function clampInt(value: string, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
 }
 
-async function applyZoomToActiveTab(zoomLevel: ZoomLevel): Promise<void> {
-  const [tab] = await chrome.tabs.query({
-    url: "https://submit.shutterstock.com/*"
-  });
-  if (tab?.id) {
-    chrome.tabs.sendMessage(tab.id, { type: "APPLY_ZOOM", zoomLevel }).catch(() => {});
-  }
-}
