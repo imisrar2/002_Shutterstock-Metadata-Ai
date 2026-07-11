@@ -1,0 +1,97 @@
+/* Injected into the Shutterstock portfolio page. Kept minimal and scoped so
+   it never clashes with Shutterstock's own styles. */
+
+/* Currently processing asset — teal outline with glow */
+.ssai-processing-highlight {
+  outline: 2px solid #5ee0c2 !important;
+  outline-offset: 2px !important;
+  border-radius: 8px !important;
+  transition: outline-color 0.2s ease;
+  position: relative;
+}
+
+.ssai-processing-highlight::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  background: rgba(94, 224, 194, 0.08);
+  pointer-events: none;
+  animation: ssai-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes ssai-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.08; }
+}
+
+/* Completed asset — green checkmark overlay */
+.ssai-completed {
+  position: relative;
+}
+
+.ssai-completed::before {
+  content: "✓";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #17a589;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Failed asset — red indicator */
+.ssai-failed {
+  position: relative;
+}
+
+.ssai-failed::before {
+  content: "✗";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #d64545;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Skipped asset — yellow indicator */
+.ssai-skipped::before {
+  content: "–";
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #c07a0e;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}

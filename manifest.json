@@ -1,0 +1,50 @@
+{
+  "manifest_version": 3,
+  "name": "Shutterstock AI Metadata Studio",
+  "version": "2.0.0",
+  "description": "Fully autonomous portfolio assistant for Shutterstock contributors. Automatically processes the Not Submitted grid using Gemini AI.",
+  "action": {
+    "default_title": "Shutterstock AI Metadata Studio",
+    "default_icon": {
+      "16": "public/icons/icon16.png",
+      "48": "public/icons/icon48.png",
+      "128": "public/icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "sidePanel",
+    "alarms",
+    "downloads",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://submit.shutterstock.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://submit.shutterstock.com/*"],
+      "js": ["src/content/content.js"],
+      "css": ["src/content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "public/icons/icon16.png",
+    "48": "public/icons/icon48.png",
+    "128": "public/icons/icon128.png"
+  },
+  "minimum_chrome_version": "116"
+}

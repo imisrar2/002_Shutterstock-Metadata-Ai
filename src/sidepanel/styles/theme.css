@@ -1,0 +1,79 @@
+/*
+  Design language: "Control Room" — a quiet, data-console aesthetic for a
+  tool whose real content is a vision model scanning vectors and a queue
+  ticking forward. Graphite surfaces keep the thumbnails and status colors
+  legible; the signature "scan line" sweep on the active thumbnail is the
+  one bold gesture, everything else stays disciplined and functional.
+
+  Type roles:
+  - Space Grotesk (display): headings, section titles — geometric, technical.
+  - Inter (body): all UI copy, labels, buttons.
+  - IBM Plex Mono (data): counters, ETA, percentages — a console/telemetry feel.
+*/
+
+:root,
+[data-theme="dark"] {
+  --bg-base: #14171a;
+  --bg-elevated: #1b1f24;
+  --bg-card: #20252b;
+  --bg-card-hover: #262c33;
+  --border-subtle: #2c333b;
+  --border-strong: #3a424c;
+
+  --text-primary: #edf0f3;
+  --text-secondary: #a6afba;
+  --text-muted: #6b7480;
+
+  --accent: #5ee0c2;
+  --accent-strong: #3fc9a9;
+  --accent-soft: rgba(94, 224, 194, 0.14);
+
+  --warn: #f5a623;
+  --warn-soft: rgba(245, 166, 35, 0.14);
+
+  --danger: #ff6b6b;
+  --danger-soft: rgba(255, 107, 107, 0.14);
+
+  --info: #6ea8fe;
+  --info-soft: rgba(110, 168, 254, 0.14);
+
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.2);
+
+  --font-display: "Space Grotesk", "Segoe UI", sans-serif;
+  --font-body: "Inter", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+}
+
+[data-theme="light"] {
+  --bg-base: #f4f5f7;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f2f5;
+  --border-subtle: #e2e5ea;
+  --border-strong: #cfd4db;
+
+  --text-primary: #1a1d21;
+  --text-secondary: #5a6270;
+  --text-muted: #8a919c;
+
+  --accent: #17a589;
+  --accent-strong: #128a72;
+  --accent-soft: rgba(23, 165, 137, 0.1);
+
+  --warn: #c07a0e;
+  --warn-soft: rgba(192, 122, 14, 0.1);
+
+  --danger: #d64545;
+  --danger-soft: rgba(214, 69, 69, 0.1);
+
+  --info: #3167c9;
+  --info-soft: rgba(49, 103, 201, 0.1);
+
+  --shadow-card: 0 8px 20px rgba(20, 23, 26, 0.08);
+  --shadow-soft: 0 2px 6px rgba(20, 23, 26, 0.06);
+}
