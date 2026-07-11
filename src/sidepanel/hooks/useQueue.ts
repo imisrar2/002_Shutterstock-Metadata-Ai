@@ -3,7 +3,7 @@ import { STORAGE_KEYS } from "@/constants/config";
 import type { LogEntry, QueueSnapshot, RuntimeMessage, ScannedAsset, ProcessingStatus } from "@/types";
 import { useChromeStorage } from "./useChromeStorage";
 import { createEmptySnapshot, mergeScannedAssets, queueProgress } from "@/queue/queueTypes";
-import { storageSet } from "@/storage/storageService";
+import { storageGet, storageSet } from "@/storage/storageService";
 
 export function useQueue() {
   const [snapshot, setSnapshot] = useChromeStorage<QueueSnapshot>(
@@ -56,16 +56,21 @@ export function useQueue() {
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot]);
+  }, [mergeAndSave, setSnapshot]);
 
   const mergeAndSave = useCallback(
     async (scanned: ScannedAsset[]) => {
-      const merged = mergeScannedAssets(snapshot.items, scanned);
-      const next: QueueSnapshot = { ...snapshot, items: merged, updatedAt: Date.now() };
+      // Always read the LATEST snapshot from storage to avoid overwriting
+      // status/currentItemId that the background script may have updated.
+      const current =
+        (await storageGet<QueueSnapshot>(STORAGE_KEYS.QUEUE_SNAPSHOT)) ??
+        createEmptySnapshot();
+      const merged = mergeScannedAssets(current.items, scanned);
+      const next: QueueSnapshot = { ...current, items: merged, updatedAt: Date.now() };
       await storageSet(STORAGE_KEYS.QUEUE_SNAPSHOT, next);
       setSnapshot(next);
     },
-    [snapshot, setSnapshot]
+    [setSnapshot]
   );
 
   const scanNow = useCallback(async () => {
