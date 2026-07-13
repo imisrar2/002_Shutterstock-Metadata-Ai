@@ -29,11 +29,15 @@ export async function imageElementToBase64(
     canvas.width = Math.max(1, Math.round((img.naturalWidth || 1) * scale));
     canvas.height = Math.max(1, Math.round((img.naturalHeight || 1) * scale));
     const ctx = canvas.getContext("2d");
-    if (!ctx) return null;
+    if (!ctx) {
+      console.error("imageElementToBase64: No 2D context");
+      return null;
+    }
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL("image/png");
     return { base64: dataUrl.split(",")[1] ?? "", mimeType: "image/png" };
-  } catch {
+  } catch (err) {
+    console.error("imageElementToBase64: canvas failed, trying fetch fallback. Error:", err);
     return fetchImageAsBase64(img.currentSrc || img.src);
   }
 }
@@ -42,12 +46,35 @@ export async function fetchImageAsBase64(
   url: string
 ): Promise<ImagePayload | null> {
   try {
-    const response = await fetch(url, { credentials: "include" });
-    if (!response.ok) return null;
+    if (!url) {
+      console.error("fetchImageAsBase64: url is empty");
+      return null;
+    }
+
+    // Try without credentials first. CDNs often allow CORS but reject requests with credentials.
+    let response = await fetch(url, { mode: "cors" }).catch((e) => {
+      console.warn("fetchImageAsBase64: fetch without credentials failed", e);
+      return null;
+    });
+
+    if (!response || !response.ok) {
+      // Fallback to with credentials if the first attempt failed (e.g. protected asset)
+      response = await fetch(url, { credentials: "include" }).catch((e) => {
+        console.error("fetchImageAsBase64: fetch with credentials failed", e);
+        return null;
+      });
+    }
+
+    if (!response || !response.ok) {
+      console.error(`fetchImageAsBase64: all fetch attempts failed for url: ${url}`);
+      return null;
+    }
+
     const blob = await response.blob();
     const base64 = await blobToBase64(blob);
     return { base64, mimeType: blob.type || "image/png" };
-  } catch {
+  } catch (err) {
+    console.error("fetchImageAsBase64: error fetching or parsing blob:", err);
     return null;
   }
 }

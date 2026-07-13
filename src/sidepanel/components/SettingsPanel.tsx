@@ -3,13 +3,12 @@ import { useSettings } from "../hooks/useSettings";
 import { ApiKeyManager } from "./ApiKeyManager";
 
 
-type Tab = "api" | "processing" | "workspace" | "export" | "general";
+type Tab = "api" | "processing" | "workspace" | "general";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "api", label: "API" },
   { id: "processing", label: "Processing" },
   { id: "workspace", label: "Workspace" },
-  { id: "export", label: "Export" },
   { id: "general", label: "General" }
 ];
 
@@ -134,35 +133,6 @@ export function SettingsPanel() {
               />
               <span className="switch-track" />
             </label>
-          </div>
-        </>
-      )}
-
-      {tab === "export" && (
-        <>
-          <div className="toggle-row">
-            <div>
-              <div className="toggle-row-label">Include failed items</div>
-              <div className="toggle-row-desc">Export rows that failed processing along with completed ones.</div>
-            </div>
-            <label className="switch">
-              <input
-                type="checkbox"
-                checked={settings.export.includeFailedItems}
-                onChange={(e) => updateSection("export", { includeFailedItems: e.target.checked })}
-              />
-              <span className="switch-track" />
-            </label>
-          </div>
-
-          <div className="field-group">
-            <label className="field-label">CSV filename prefix</label>
-            <input
-              className="field-input"
-              type="text"
-              value={settings.export.filenamePrefix}
-              onChange={(e) => updateSection("export", { filenamePrefix: e.target.value })}
-            />
           </div>
         </>
       )}

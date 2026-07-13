@@ -23,6 +23,21 @@ export function useQueue() {
     }
   }, [snapshot.logs]);
 
+  const mergeAndSave = useCallback(
+    async (scanned: ScannedAsset[]) => {
+      // Always read the LATEST snapshot from storage to avoid overwriting
+      // status/currentItemId that the background script may have updated.
+      const current =
+        (await storageGet<QueueSnapshot>(STORAGE_KEYS.QUEUE_SNAPSHOT)) ??
+        createEmptySnapshot();
+      const merged = mergeScannedAssets(current.items, scanned);
+      const next: QueueSnapshot = { ...current, items: merged, updatedAt: Date.now() };
+      await storageSet(STORAGE_KEYS.QUEUE_SNAPSHOT, next);
+      setSnapshot(next);
+    },
+    [setSnapshot]
+  );
+
   useEffect(() => {
     const listener = (message: RuntimeMessage) => {
       if (message.type === "PORTFOLIO_SCANNED") {
@@ -57,21 +72,6 @@ export function useQueue() {
     return () => chrome.runtime.onMessage.removeListener(listener);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mergeAndSave, setSnapshot]);
-
-  const mergeAndSave = useCallback(
-    async (scanned: ScannedAsset[]) => {
-      // Always read the LATEST snapshot from storage to avoid overwriting
-      // status/currentItemId that the background script may have updated.
-      const current =
-        (await storageGet<QueueSnapshot>(STORAGE_KEYS.QUEUE_SNAPSHOT)) ??
-        createEmptySnapshot();
-      const merged = mergeScannedAssets(current.items, scanned);
-      const next: QueueSnapshot = { ...current, items: merged, updatedAt: Date.now() };
-      await storageSet(STORAGE_KEYS.QUEUE_SNAPSHOT, next);
-      setSnapshot(next);
-    },
-    [setSnapshot]
-  );
 
   const scanNow = useCallback(async () => {
     const [tab] = await chrome.tabs.query({

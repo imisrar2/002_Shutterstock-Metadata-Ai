@@ -1,5 +1,5 @@
 import { GEMINI_ENDPOINT, GEMINI_MODEL, RATE_LIMIT_COOLDOWN_MS, TRANSIENT_FAILURE_COOLDOWN_MS } from "@/constants/config";
-import { SHUTTERSTOCK_CATEGORIES, isValidCategoryId } from "@/constants/categories";
+import { SHUTTERSTOCK_CATEGORIES, findCategoryById } from "@/constants/categories";
 import type { GeminiVisionRequest, GeminiVisionResponse, GeneratedMetadata } from "@/types";
 import {
   selectBestAvailableKey,
@@ -13,10 +13,144 @@ const log = createLogger("geminiService");
 
 function buildPrompt(req: GeminiVisionRequest): string {
   const categoryLines = SHUTTERSTOCK_CATEGORIES.map(
-    (c) => `- ${c.id}: ${c.label}`
+    (c) => `- ${c.label}`
   ).join("\n");
 
-  return `You are a professional Shutterstock contributor metadata specialist analyzing a stock asset (photo, illustration, vector, or graphic) for licensing on Shutterstock.
+  return `You are a professional Shutterstock contributor with extensive experience creating metadata for commercially successful vector illustrations.
+
+Your objective is NOT to maximize keyword count.
+
+Your objective is to generate metadata that Shutterstock is most likely to accept while accurately describing the artwork and maximizing discoverability.
+
+Always prioritize:
+1. Accuracy
+2. Relevance
+3. Commercial searchability
+4. Shutterstock compatibility
+
+Never optimize by adding irrelevant metadata.
+
+========================================================
+GENERAL RULES
+========================================================
+Generate metadata exactly as an experienced Shutterstock contributor would.
+Everything must be supported by the uploaded vector.
+Never invent:
+- Objects, People, Animals, Brands, Logos, Companies, Products, Locations, Activities, Concepts not visually represented.
+If something cannot be confirmed from the artwork, do not mention it.
+
+========================================================
+DESCRIPTION RULES
+========================================================
+Generate ONE professional English description.
+The description must be:
+• Natural, Human-written, Grammatically correct, Commercially useful, Concise, Accurate, Easy to read
+
+The description should explain:
+- Main subject, Important objects, Style, Purpose when visually obvious
+
+Never include:
+• Emoji, HTML, Markdown, Quotes, Brackets, Curly braces, Angle brackets, Pipe symbols, Slash abuse, Repeated punctuation, Multiple exclamation marks, Tabs, Newlines
+Use only plain UTF-8 text.
+
+Avoid characters that commonly create validation problems.
+Do NOT use: # @ $ % ^ & * ~ \` | < > { } [] \\\\
+Avoid unnecessary punctuation.
+Use only: letters, numbers, spaces, comma, period, hyphen when absolutely necessary
+
+Never include:
+Copyright symbols, Trademark symbols, Registered symbols, Special Unicode decorations, Marketing language, Clickbait, AI-related wording
+
+The description should stay within the configured character limits.
+
+========================================================
+KEYWORD STRATEGY
+========================================================
+Quality is MUCH more important than quantity.
+Generate between \${req.minKeywords} and \${req.maxKeywords} keywords.
+Never attempt to reach \${req.maxKeywords} keywords by adding weak terms.
+Each keyword must contribute unique search value.
+
+========================================================
+KEYWORD ORDER
+========================================================
+Order keywords by importance.
+1-5: Main subject
+6-10: Main object
+11-15: Major concept
+16-20: Industry
+21-25: Style
+26-30: Usage
+31-38: Supporting keywords only if highly relevant.
+
+========================================================
+KEYWORD TYPES
+========================================================
+Prefer: Single-word keywords, Common two-word search phrases (e.g. line art, flat design, mobile app, cyber security, data analysis, user interface)
+Never generate long keyword phrases.
+
+========================================================
+REMOVE REDUNDANCY
+========================================================
+Never generate multiple keywords that represent nearly identical meaning.
+Choose only the strongest commercially useful terms.
+Avoid: Singular + plural duplicates, Spelling variations, Tiny wording differences, Repeated concepts
+
+========================================================
+NEVER GENERATE
+========================================================
+Brand names, Company names, Movie names, TV shows, Sports teams, Celebrities, Copyrighted characters, Trademarks, Adult content, Spam keywords, Trending unrelated words, Misleading keywords, Keywords not visible in the artwork, Duplicate keywords, Empty keywords
+
+========================================================
+STYLE KEYWORDS
+========================================================
+Include style only when visually obvious (e.g. outline, line icon, glyph, filled, minimal, flat, monochrome, gradient, isometric, hand drawn, geometric).
+
+========================================================
+COLOR KEYWORDS
+========================================================
+Only include colors if they are visually important. Do not list every visible color.
+
+========================================================
+USAGE KEYWORDS
+========================================================
+Only include usage terms that buyers commonly search (e.g. logo, icon, mobile app, website, dashboard, presentation, infographic, template, UI, UX).
+
+========================================================
+CATEGORY STRATEGY
+========================================================
+The extension provides Shutterstock's official category list.
+Only choose from that list. Never invent categories. Never rename categories.
+\${categoryLines}
+
+========================================================
+PRIMARY CATEGORY
+========================================================
+Choose the SINGLE BEST category. It must represent the artwork better than every other category. Never guess.
+
+========================================================
+SECONDARY CATEGORY
+========================================================
+Only choose a secondary category if it is strongly relevant.
+If confidence is low, leave Secondary Category empty. Never force a second category.
+
+========================================================
+CATEGORY PRIORITY
+========================================================
+Always classify using the PRIMARY SUBJECT. Never classify using a minor object.
+Example: A cybersecurity shield icon -> Primary: Technology (NOT Business).
+
+========================================================
+FINAL QUALITY CHECK
+========================================================
+Before returning metadata, verify:
+✓ Description is natural, contains no forbidden symbols, contains no unnecessary punctuation, grammar is correct, no spelling mistakes.
+✓ Keywords contain no duplicates, no repeated concepts, are commercially useful, ordered by importance.
+✓ Only \${req.minKeywords}–\${req.maxKeywords} high-quality keywords.
+✓ Category is the best possible Shutterstock category.
+✓ Secondary category is empty unless strongly relevant.
+
+File name for context only: "\${req.fileName}"
 
 Return ONLY a single JSON object (no markdown fences, no commentary) with this exact shape:
 {
@@ -27,19 +161,7 @@ Return ONLY a single JSON object (no markdown fences, no commentary) with this e
   "secondaryCategory": string | null,
   "primaryConfidence": number,
   "secondaryConfidence": number
-}
-
-Rules:
-1. "title": a concise, descriptive, SEO-optimized title (max 200 characters). Should read like a professional stock asset title. Do NOT use generic phrases like "Beautiful image of..." — be specific about the subject.
-2. "description": one natural, commercial, SEO-friendly sentence (max ~200 characters) that describes the asset. No keyword stuffing, no hallucinated details not visible in the image. If the asset is a vector or illustration, say so naturally. If it's a photo, describe it as a photo.
-3. "keywords": between ${req.minKeywords} and ${req.maxKeywords} lowercase keywords, most relevant first, correctly spelled, no duplicates, no irrelevant terms, no trademarks, no company names, no celebrity names, no copyrighted character names, no spam/repetition.
-4. "primaryCategory" and "secondaryCategory" MUST be chosen ONLY from this exact list of category ids (never invent a new one):
-${categoryLines}
-5. Only set "secondaryCategory" if you are genuinely confident it applies well beyond the primary category; otherwise set it to null.
-6. "primaryConfidence" and "secondaryConfidence" are numbers between 0 and 1 representing your internal confidence — these are used internally only and will not be shown to any user.
-7. Base everything strictly on what is visually present in the image. Do not guess brand names or real people.
-
-File name for context only (do not copy verbatim into the title or description): "${req.fileName}"`;
+}`;
 }
 
 function extractJson(text: string): unknown {
@@ -63,16 +185,18 @@ function coerceMetadata(
     keywordsRaw.filter((k): k is string => typeof k === "string")
   ).slice(0, req.maxKeywords);
 
+  // Resolve primaryCategory: accept both slug and label text
   let primaryCategory =
-    typeof obj.primaryCategory === "string" ? obj.primaryCategory : "";
-  if (!isValidCategoryId(primaryCategory)) {
-    primaryCategory = "miscellaneous";
-  }
+    typeof obj.primaryCategory === "string" ? obj.primaryCategory.trim() : "";
+  const resolvedPrimary = findCategoryById(primaryCategory);
+  primaryCategory = resolvedPrimary ? resolvedPrimary.id : "miscellaneous";
 
+  // Resolve secondaryCategory
   let secondaryCategory =
-    typeof obj.secondaryCategory === "string" ? obj.secondaryCategory : null;
-  if (secondaryCategory && !isValidCategoryId(secondaryCategory)) {
-    secondaryCategory = null;
+    typeof obj.secondaryCategory === "string" ? obj.secondaryCategory.trim() : null;
+  if (secondaryCategory) {
+    const resolvedSecondary = findCategoryById(secondaryCategory);
+    secondaryCategory = resolvedSecondary ? resolvedSecondary.id : null;
   }
   if (secondaryCategory === primaryCategory) {
     secondaryCategory = null;

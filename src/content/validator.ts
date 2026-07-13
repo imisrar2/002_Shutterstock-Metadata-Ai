@@ -21,8 +21,9 @@ export interface ValidationResult {
  * Called after fillMetadataForEditor() to confirm the autofill stuck.
  */
 export function validateFilledMetadata(): ValidationResult {
-  const editorPanel = queryFirst(SELECTORS.editorContainer);
-  const scope: ParentNode = editorPanel || document;
+  let editorPanel = queryFirst(SELECTORS.editorContainer);
+  const hasFields = editorPanel && (queryFirst(SELECTORS.titleField, editorPanel) || queryFirst(SELECTORS.descriptionField, editorPanel) || queryFirst(SELECTORS.keywordsField, editorPanel));
+  const scope: ParentNode = hasFields ? editorPanel : document;
 
   const details: Record<string, { present: boolean; hasValue: boolean }> = {};
   const missingFields: string[] = [];
@@ -44,18 +45,20 @@ export function validateFilledMetadata(): ValidationResult {
     missingFields.push("title/description");
   }
 
-  // Check keywords — look for chips (already-added keywords)
+  // Check keywords — look for chips OR text in the input field
   const keywordChips = queryAll(SELECTORS.keywordChip, scope);
   const keywordsInput = queryFirst<HTMLInputElement>(SELECTORS.keywordsField, scope);
   const keywordsPresent = !!keywordsInput || keywordChips.length > 0;
-  const keywordsHaveValue = keywordChips.length > 0;
+  
+  // Pass if chips exist, OR if the input field itself has a string of keywords typed in
+  const keywordsHaveValue = keywordChips.length > 0 || (!!keywordsInput && keywordsInput.value.trim().length > 0);
 
   details["keywords"] = { present: keywordsPresent, hasValue: keywordsHaveValue };
   if (!keywordsHaveValue) {
     missingFields.push("keywords");
   }
 
-  // Check primary category
+  // Check primary category — informational only, never blocks completion
   const primaryCat = queryFirst<HTMLSelectElement>(
     SELECTORS.primaryCategoryField,
     scope
@@ -68,10 +71,8 @@ export function validateFilledMetadata(): ValidationResult {
     present: primaryPresent,
     hasValue: primaryHasValue,
   };
-  // Categories are nice-to-have, not blocking
-  if (primaryPresent && !primaryHasValue) {
-    missingFields.push("primaryCategory");
-  }
+  // Category is intentionally NOT added to missingFields — it should never block completion.
+  // Autofill makes a best-effort attempt; the user can always set it manually.
 
   const valid = missingFields.length === 0;
 

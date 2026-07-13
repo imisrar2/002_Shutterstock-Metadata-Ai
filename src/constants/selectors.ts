@@ -81,68 +81,118 @@ export const SELECTORS = {
     '[class*="DetailPanel"] img',
   ],
 
+  /** Save button in the editor. */
+  saveButton: [
+    'button[data-automation="save-btn"]',
+    'button[data-automation="save-button"]',
+    'button[aria-label*="Save" i]',
+    'button[data-testid*="save"]',
+    'form button[type="submit"]',
+  ],
+
+  /** Saving indicator (e.g. loader, disabled save button, saving text). */
+  savingIndicator: [
+    'button[data-automation="save-btn"][disabled]',
+    'button[data-automation="save-button"][disabled]',
+    '[data-automation="save-btn"] [class*="spinner"]',
+    '[data-automation="save-button"] [class*="spinner"]',
+    '[data-automation="saving-indicator"]',
+    '[role="status"]',
+    '[class*="saving"]',
+    '[class*="Saving"]',
+    '[class*="loader"]',
+    '[class*="Loader"]'
+  ],
+
   /** Title input in the editor (Shutterstock calls this "Description" or "Title"). */
   titleField: [
-    'input[data-automation="title-input"]',
-    'input[data-automation="description-input"]',
-    'input[name="title"]',
-    'input[name="description"]',
+    '[data-automation*="title" i] input',
+    '[data-automation*="description" i] input',
+    'input[data-automation*="title" i]',
+    'input[data-automation*="description" i]',
+    '[name*="title" i]',
+    '[name*="description" i]',
     'input[aria-label*="Title" i]',
     'input[aria-label*="Description" i]',
     'input[placeholder*="title" i]',
     'input[placeholder*="description" i]',
+    // Removed generic 'textarea' fallback to prevent false positives
   ],
 
   /** Description textarea in the editor. */
   descriptionField: [
-    'textarea[data-automation="description-input"]',
-    'textarea[data-automation="description-textarea"]',
-    'textarea[name="description"]',
+    '[data-automation*="description" i] textarea',
+    'textarea[data-automation*="description" i]',
+    'textarea[name*="description" i]',
     'textarea[aria-label*="Description" i]',
     'textarea[placeholder*="description" i]',
+    // Removed generic 'textarea' fallback to prevent false positives
   ],
 
   /** Keywords input field. */
   keywordsField: [
-    'input[data-automation="keywords-input"]',
-    'input[name="keywords"]',
-    '[data-automation="keywords-container"] input',
+    '[data-automation*="keyword" i] input',
+    'input[data-automation*="keyword" i]',
+    'input[name*="keyword" i]',
     'input[aria-label*="Keyword" i]',
     'input[placeholder*="keyword" i]',
   ],
 
   /** Keyword chips (already added keywords). */
   keywordChip: [
-    '[data-automation="keyword-chip"]',
-    '[class*="KeywordChip"]',
-    '[class*="keyword-chip"]',
-    '[class*="tag-chip"]',
+    '[data-automation*="keyword" i][data-automation*="chip" i]',
+    '[data-automation*="keyword" i][data-automation*="item" i]',
+    '[class*="KeywordChip" i]',
+    '[class*="tag-chip" i]',
+    '[data-automation*="keywords" i] li', // structural fallback
+    '[class*="keyword" i] li', // structural fallback
   ],
 
   /** Remove button on keyword chips. */
   keywordChipRemoveButton: [
-    '[data-automation="keyword-chip-remove"]',
+    '[data-automation*="keyword" i][data-automation*="remove" i]',
     'button[aria-label*="Remove" i]',
-    '[class*="KeywordChip"] button',
-    '[class*="keyword-chip"] button',
+    '[class*="KeywordChip" i] button',
+    '[class*="tag-chip" i] button',
+    '[data-automation*="keywords" i] li button',
   ],
 
   /** Primary category dropdown. */
   primaryCategoryField: [
     'select[data-automation="category-one"]',
     'select[data-automation="category-select-primary"]',
+    'select[data-automation="primary-category"]',
+    'select[data-automation="category"]',
     'select[name="category1"]',
+    'select[name="category"]',
+    'select[name="primaryCategory"]',
+    'select[id="category1"]',
+    'select[id="category"]',
     'select[aria-label*="Category 1" i]',
+    'select[aria-label*="Primary category" i]',
     'select[aria-label*="Primary" i]',
+    'select[aria-label*="Category" i]',
+    'select[placeholder*="category" i]',
+    '[class*="category"] select',
+    '[class*="Category"] select',
+    '[data-testid*="category"] select',
+    'select:first-of-type',
   ],
 
   /** Secondary category dropdown. */
   secondaryCategoryField: [
     'select[data-automation="category-two"]',
     'select[data-automation="category-select-secondary"]',
+    'select[data-automation="secondary-category"]',
     'select[name="category2"]',
+    'select[name="secondaryCategory"]',
+    'select[id="category2"]',
     'select[aria-label*="Category 2" i]',
+    'select[aria-label*="Secondary category" i]',
     'select[aria-label*="Secondary" i]',
+    '[class*="category"] select:nth-of-type(2)',
+    '[class*="Category"] select:nth-of-type(2)',
+    'select:nth-of-type(2)',
   ],
 
   /** The "Next" pagination link/button. */
@@ -165,9 +215,15 @@ export const SELECTORS = {
 
 export type SelectorGroup = keyof typeof SELECTORS;
 
+function isVisible(el: Element): boolean {
+  if (!(el instanceof HTMLElement)) return true;
+  return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+}
+
 /**
  * Try each selector in a group, in order, scoped to `root`, returning the
- * first match. Keeps the content script resilient to markup changes.
+ * first match. Prioritizes visible elements to avoid interacting with hidden
+ * React state trackers.
  */
 export function queryFirst<T extends Element = Element>(
   group: readonly string[],
@@ -175,8 +231,15 @@ export function queryFirst<T extends Element = Element>(
 ): T | null {
   for (const selector of group) {
     try {
-      const el = root.querySelector<T>(selector);
-      if (el) return el;
+      const els = root.querySelectorAll<T>(selector);
+      if (els.length > 0) {
+        // Prefer visible elements
+        const visibleEl = Array.from(els).find(isVisible);
+        if (visibleEl) return visibleEl;
+        
+        // Fallback to first if none visible
+        return els[0];
+      }
     } catch {
       // Invalid selector for this DOM snapshot — skip and try the next one.
     }
@@ -191,7 +254,11 @@ export function queryAll<T extends Element = Element>(
   for (const selector of group) {
     try {
       const els = root.querySelectorAll<T>(selector);
-      if (els.length > 0) return Array.from(els);
+      if (els.length > 0) {
+        // Filter out hidden elements if there are visible ones
+        const visibleEls = Array.from(els).filter(isVisible);
+        return visibleEls.length > 0 ? visibleEls : Array.from(els);
+      }
     } catch {
       // try next selector
     }

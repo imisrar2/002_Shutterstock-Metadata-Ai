@@ -112,8 +112,64 @@ async function handleMessage(message: RuntimeMessage): Promise<unknown> {
       await openOrFocusNotSubmitted();
       return { ok: true };
 
+    // ----- Background-proxied image fetch -----
+    // Content scripts cannot fetch Shutterstock CDN images due to CORS.
+    // The background service worker has no origin and can fetch them freely.
+    case "FETCH_IMAGE_URL": {
+      const result = await fetchImageViaBackground(message.url);
+      return result;
+    }
+
     default:
       return null;
+  }
+}
+
+/**
+ * Fetches an image URL from the privileged background context and returns
+ * it as a base64 string. Background service workers are not bound by the
+ * page's CORS policy, so they can reach Shutterstock's CDN freely.
+ */
+async function fetchImageViaBackground(
+  url: string
+): Promise<{ type: string; base64: string | null; mimeType: string; error?: string }> {
+  if (!url) {
+    return { type: "IMAGE_URL_FETCHED", base64: null, mimeType: "image/png", error: "Empty URL" };
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return {
+        type: "IMAGE_URL_FETCHED",
+        base64: null,
+        mimeType: "image/png",
+        error: `Background fetch failed: HTTP ${response.status}`,
+      };
+    }
+
+    const blob = await response.blob();
+    const mimeType = blob.type || "image/png";
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    // Convert to base64 without using btoa on a large string (avoids stack overflow)
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < uint8.length; i += chunkSize) {
+      binary += String.fromCharCode(...uint8.slice(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
+
+    return { type: "IMAGE_URL_FETCHED", base64, mimeType };
+  } catch (err) {
+    log.error("Background image fetch failed", err);
+    return {
+      type: "IMAGE_URL_FETCHED",
+      base64: null,
+      mimeType: "image/png",
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
   }
 }
 

@@ -32,7 +32,7 @@ export function scanPortfolioGrid(): ScannedAsset[] {
     const thumbnailUrl = img?.src || img?.currentSrc || null;
 
     // Build a stable-ish card identifier
-    const cardId = buildCardId(card, i, name);
+    const cardId = buildCardId(card, i, name, thumbnailUrl);
 
     results.push({
       index: i,
@@ -58,18 +58,34 @@ export function clickAssetCard(index: number): boolean {
     return false;
   }
 
+  // Force deselect any currently selected items to prevent multi-selection bugs.
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
+  let deselectedCount = 0;
+  checkboxes.forEach((cb) => {
+    if (cb.checked) {
+      // Click the parent element if it's a label, otherwise click the checkbox itself
+      const clickable = cb.closest('label') || cb.parentElement || cb;
+      clickable.click();
+      deselectedCount++;
+    }
+  });
+
+  if (deselectedCount > 0) {
+    log.debug(`Cleared ${deselectedCount} existing selections.`);
+  }
+
   // Scroll the card into view first
   card.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior });
-
-  // Try clicking the link inside the card first, then the card itself
-  const link = queryFirst<HTMLElement>(SELECTORS.assetCardLink, card);
-  const clickTarget = link || card;
 
   // Add processing highlight
   card.classList.add("ssai-processing-highlight");
 
+  // Use native click() as React might ignore synthesized dispatchEvent clicks
+  const link = queryFirst<HTMLElement>(SELECTORS.assetCardLink, card);
+  const clickTarget = link || card;
   clickTarget.click();
-  log.debug(`Clicked asset card at index ${index}.`);
+  
+  log.debug(`Clicked asset card at index ${index} exclusively.`);
   return true;
 }
 
@@ -112,11 +128,18 @@ function extractAssetName(
 function buildCardId(
   card: HTMLElement,
   index: number,
-  name: string
+  name: string,
+  thumbnailUrl: string | null
 ): string {
   // Prefer data-id or href-based IDs
   const dataId = card.dataset.id || card.dataset.assetId;
   if (dataId) return `card_${dataId}`;
+
+  // Extract from thumbnail URL (highly reliable since the URL contains the Shutterstock asset ID)
+  if (thumbnailUrl) {
+    const thumbMatch = thumbnailUrl.match(/\/(\d+)\//);
+    if (thumbMatch) return `card_${thumbMatch[1]}`;
+  }
 
   const link = queryFirst<HTMLAnchorElement>(SELECTORS.assetCardLink, card);
   if (link?.href) {
@@ -124,8 +147,8 @@ function buildCardId(
     if (match) return `card_${match[1]}`;
   }
 
-  // Fall back to index + name hash
-  return `card_${index}_${name.replace(/\s+/g, "_").slice(0, 30)}`;
+  // Fall back to index (avoiding name because name changes when we update metadata)
+  return `card_fallback_${index}`;
 }
 
 /**

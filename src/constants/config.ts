@@ -34,7 +34,6 @@ export const ELEMENT_WAIT_TIMEOUT_MS = 15_000;
 
 export const DEFAULT_SETTINGS: AppSettings = {
   workspace: {
-    zoomLevel: 70,
     autoOpenSidePanel: true,
   },
   processing: {
@@ -43,10 +42,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
     minKeywords: 25,
     maxKeywords: 50,
     requestTimeoutMs: 30_000,
-  },
-  export: {
-    includeFailedItems: false,
-    filenamePrefix: "shutterstock-metadata",
   },
   general: {
     theme: "dark",

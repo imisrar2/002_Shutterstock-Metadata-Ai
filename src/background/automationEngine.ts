@@ -146,8 +146,26 @@ async function processItem(
   snap = await addLog(snap, `Opening asset #${item.index + 1}: ${item.fileName}...`, "step");
   await saveSnapshot(snap);
 
-  // Check for skip/stop
-  if (skipCurrentRequested || stopRequested) return;
+  // Helper to gracefully abort and reset state
+  const checkAbort = async () => {
+    if (skipCurrentRequested || stopRequested) {
+      const wasSkipped = skipCurrentRequested;
+      if (wasSkipped) skipCurrentRequested = false; // Reset so we don't skip the next item too
+      
+      snap = await updateItem(item.id, {
+        state: wasSkipped ? "skipped" : "waiting",
+        currentStep: null,
+      });
+      if (wasSkipped) {
+        snap = await addLog(snap, `Skipped asset #${item.index + 1}.`, "warn");
+      }
+      await saveSnapshot(snap);
+      return true;
+    }
+    return false;
+  };
+
+  if (await checkAbort()) return;
 
   // STEP 2: Click the asset thumbnail
   const openResult = await sendToContentScript<{
@@ -197,7 +215,7 @@ async function processItem(
   snap = await addLog(await getSnapshot(), "✓ Editor loaded.", "step");
   await saveSnapshot(snap);
 
-  if (skipCurrentRequested || stopRequested) return;
+  if (await checkAbort()) return;
 
   // STEP 4: Extract preview image
   snap = await updateItem(item.id, {
@@ -212,7 +230,7 @@ async function processItem(
     imageBase64: string | null;
     mimeType: string;
     error?: string;
-  }>({ type: "EXTRACT_PREVIEW", index: item.index });
+  }>({ type: "EXTRACT_PREVIEW", index: item.index, fallbackUrl: item.thumbnailUrl });
 
   if (!previewResult?.imageBase64) {
     snap = await updateItem(item.id, {
@@ -228,7 +246,7 @@ async function processItem(
   snap = await addLog(await getSnapshot(), "✓ Preview extracted.");
   await saveSnapshot(snap);
 
-  if (skipCurrentRequested || stopRequested) return;
+  if (await checkAbort()) return;
 
   // STEP 5 & 6: Generate metadata via Gemini
   snap = await updateItem(item.id, {
@@ -245,7 +263,7 @@ async function processItem(
   while (attempts < settings.processing.maxRetries) {
     attempts += 1;
 
-    if (skipCurrentRequested || stopRequested) return;
+    if (await checkAbort()) return;
 
     const response = await generateMetadataForImage(
       {
@@ -263,6 +281,8 @@ async function processItem(
       snap = await addLog(await getSnapshot(), "✓ Metadata generated successfully.", "step");
       await saveSnapshot(snap);
 
+      if (await checkAbort()) return;
+
       // STEP 7: Write metadata into form
       snap = await updateItem(item.id, {
         state: "writing_metadata",
@@ -276,18 +296,26 @@ async function processItem(
       const fillResult = await sendToContentScript<{
         type: string;
         success: boolean;
+        verified?: boolean;
         error?: string;
         details?: Record<string, boolean>;
+        diagnostics?: string[];
       }>({ type: "FILL_METADATA", metadata: response.metadata });
 
-      if (fillResult?.details) {
-        const fields = Object.entries(fillResult.details);
-        for (const [field, ok] of fields) {
-          snap = await addLog(
-            await getSnapshot(),
-            ok ? `  ✓ ${field} filled` : `  ✗ ${field} failed`,
-            ok ? "info" : "warn"
-          );
+      // Log diagnostics (scope resolution, field outcomes) to the sidepanel
+      if (fillResult?.diagnostics?.length) {
+        for (const line of fillResult.diagnostics) {
+          const level = line.includes("✗") || line.includes("not found") || line.includes("failed") ? "warn" : "info";
+          snap = await addLog(await getSnapshot(), `  ${line}`, level);
+        }
+        await saveSnapshot(snap);
+      } else if (fillResult?.details) {
+        // Fallback: log only required field failures
+        const requiredFields = ["title", "description", "keywords"];
+        for (const [field, ok] of Object.entries(fillResult.details)) {
+          if (requiredFields.includes(field) && !ok) {
+            snap = await addLog(await getSnapshot(), `  ✗ ${field} failed`, "warn");
+          }
         }
         await saveSnapshot(snap);
       }
@@ -299,6 +327,20 @@ async function processItem(
         await saveSnapshot(snap);
         continue;
       }
+
+      // STRICT VERIFICATION CHECK
+      if (fillResult?.verified === false) {
+        lastError = fillResult?.error || "Save verification failed. Processing paused.";
+        snap = await addLog(await getSnapshot(), `✗ ${lastError}`, "error");
+        snap = await updateItem(item.id, { state: "failed", currentStep: null, attempts, error: lastError });
+        await saveSnapshot(snap);
+        
+        // Critical failure: Stop automation entirely
+        pauseRequested = true;
+        return; // Abort processing this item immediately
+      }
+
+      if (await checkAbort()) return;
 
       // STEP 8: Validate
       snap = await updateItem(item.id, {
@@ -317,10 +359,8 @@ async function processItem(
       if (!validationResult?.valid) {
         const missing = validationResult?.missingFields?.join(", ") || "unknown";
         lastError = `Validation failed — missing: ${missing}`;
-        snap = await addLog(await getSnapshot(), `✗ ${lastError}`, "warn");
-        snap = await updateItem(item.id, { state: "retrying", currentStep: "Retrying", attempts });
-        await saveSnapshot(snap);
-        continue;
+        snap = await addLog(await getSnapshot(), `⚠ ${lastError} (ignoring and proceeding to next)`, "warn");
+        // User requested to ignore validation failures and move to next without retrying
       }
 
       // STEP 9: Mark completed!

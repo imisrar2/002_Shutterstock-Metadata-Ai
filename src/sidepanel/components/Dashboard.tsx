@@ -5,7 +5,6 @@ import { StatusBar } from "./StatusBar";
 import { QueueList } from "./QueueList";
 import { LiveLogs } from "./LiveLogs";
 import { SessionResumeBanner } from "./SessionResumeBanner";
-import { buildCsv, triggerCsvDownload } from "@/services/csvExport";
 import { getAllKeys } from "@/services/apiKeyRotation";
 import type { ProcessingStatus } from "@/types";
 
@@ -54,14 +53,6 @@ export function Dashboard() {
     progress.completed > 0 && snapshot.startedAt
       ? (processingTimeMs / progress.completed) * progress.remaining
       : progress.remaining * 15_000;
-
-  const handleExport = () => {
-    const csv = buildCsv(snapshot.items as never[], settings.export.includeFailedItems);
-    const filename = `${settings.export.filenamePrefix}-${new Date()
-      .toISOString()
-      .slice(0, 10)}.csv`;
-    triggerCsvDownload(csv, filename);
-  };
 
   return (
     <>
@@ -205,6 +196,7 @@ export function Dashboard() {
             onClick={skipCurrent}
             disabled={!isRunning}
             title="Skip the current asset"
+            style={{ gridColumn: "1 / -1" }}
           >
             ⏭ Skip
           </button>
@@ -231,16 +223,10 @@ export function Dashboard() {
 
         <div className="btn-row" style={{ marginTop: 6 }}>
           <button
-            className="btn btn-secondary"
-            onClick={handleExport}
-            disabled={progress.completed === 0}
-          >
-            📥 Export CSV
-          </button>
-          <button
             className="btn btn-danger"
             onClick={clear}
             disabled={progress.total === 0}
+            style={{ gridColumn: "1 / -1" }}
           >
             🗑 Clear Queue
           </button>

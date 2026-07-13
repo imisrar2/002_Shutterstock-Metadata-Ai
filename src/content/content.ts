@@ -14,7 +14,7 @@ import { waitForEditorReady } from "./editorWaiter";
 import { fillMetadataForEditor } from "./autofill";
 import { validateFilledMetadata } from "./validator";
 import { startPageObserver, navigateToNextPage, getPaginationInfo } from "./pageObserver";
-import { imageElementToBase64 } from "@/utils/imageUtils";
+import { imageElementToBase64, fetchImageAsBase64 } from "@/utils/imageUtils";
 import { SELECTORS, queryFirst, queryAll } from "@/constants/selectors";
 import { createLogger } from "@/utils/logger";
 
@@ -155,7 +155,43 @@ async function handleMessage(message: RuntimeMessage): Promise<unknown> {
         });
       }
 
-      const payload = await imageElementToBase64(previewImg);
+      // Attempt 1: Canvas draw (works for same-origin or CORS-enabled images)
+      let payload = await imageElementToBase64(previewImg);
+
+      // Attempt 2: Direct fetch via fallbackUrl (grid thumbnail)
+      if (!payload && message.fallbackUrl) {
+        log.warn(`Canvas extraction failed, trying fallback URL: ${message.fallbackUrl}`);
+        payload = await fetchImageAsBase64(message.fallbackUrl);
+      }
+
+      // Attempt 3: Ask the background service worker to fetch the URL.
+      // Background workers are NOT bound by the page-origin CORS policy and can
+      // freely reach Shutterstock's CDN — this is the reliable path for EPS files.
+      if (!payload) {
+        const urlsToTry = [
+          previewImg.currentSrc || previewImg.src,
+          message.fallbackUrl,
+        ].filter(Boolean) as string[];
+
+        for (const url of urlsToTry) {
+          log.warn(`Trying background-proxied fetch for: ${url}`);
+          const bgResult = await chrome.runtime.sendMessage({
+            type: "FETCH_IMAGE_URL",
+            url,
+          } satisfies RuntimeMessage).catch(() => null) as {
+            type: string;
+            base64: string | null;
+            mimeType: string;
+            error?: string;
+          } | null;
+
+          if (bgResult?.base64) {
+            payload = { base64: bgResult.base64, mimeType: bgResult.mimeType };
+            break;
+          }
+        }
+      }
+
       if (!payload) {
         return {
           type: "PREVIEW_EXTRACTED",
@@ -179,6 +215,7 @@ async function handleMessage(message: RuntimeMessage): Promise<unknown> {
         success: result.success,
         error: result.error,
         details: result.details,
+        diagnostics: result.diagnostics,
       };
     }
 

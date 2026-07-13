@@ -142,10 +142,9 @@ export interface ApiKeyRecord {
 // Settings
 // ---------------------------------------------------------------------------
 
-export type ZoomLevel = 100 | 90 | 80 | 70 | 60;
+
 
 export interface WorkspaceSettings {
-  zoomLevel: ZoomLevel;
   autoOpenSidePanel: boolean;
 }
 
@@ -157,11 +156,6 @@ export interface ProcessingSettings {
   requestTimeoutMs: number;
 }
 
-export interface ExportSettings {
-  includeFailedItems: boolean;
-  filenamePrefix: string;
-}
-
 export interface GeneralSettings {
   theme: "dark" | "light" | "system";
   notifyOnComplete: boolean;
@@ -170,7 +164,6 @@ export interface GeneralSettings {
 export interface AppSettings {
   workspace: WorkspaceSettings;
   processing: ProcessingSettings;
-  export: ExportSettings;
   general: GeneralSettings;
 }
 
@@ -204,7 +197,7 @@ export type RuntimeMessage =
   | { type: "ASSET_OPENED"; success: boolean; error?: string }
   | { type: "WAIT_EDITOR" }
   | { type: "EDITOR_READY"; success: boolean; error?: string }
-  | { type: "EXTRACT_PREVIEW"; index: number }
+  | { type: "EXTRACT_PREVIEW"; index: number; fallbackUrl?: string | null }
   | { type: "PREVIEW_EXTRACTED"; imageBase64: string | null; mimeType: string; error?: string }
   | { type: "FILL_METADATA"; metadata: GeneratedMetadata }
   | { type: "FILL_METADATA_RESULT"; success: boolean; error?: string; details?: Record<string, boolean> }
@@ -240,7 +233,11 @@ export type RuntimeMessage =
       itemId: string;
     }
   | { type: "FILL_ROW_RESULT"; itemId: string; success: boolean; error?: string }
-  | { type: "APPLY_ZOOM"; zoomLevel: ZoomLevel }
+
+  // Background-proxied image fetch (content → background → content)
+  // Used when canvas taint + direct fetch both fail (e.g. EPS CDN CORS)
+  | { type: "FETCH_IMAGE_URL"; url: string }
+  | { type: "IMAGE_URL_FETCHED"; base64: string | null; mimeType: string; error?: string }
 
   // Live logging
   | { type: "LOG_ENTRY"; entry: LogEntry };
